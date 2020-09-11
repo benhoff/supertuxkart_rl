@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .policy import BasePolicy, DiscretePolicy
+from policy import BasePolicy, DiscretePolicy
 
 
 N_ACTIONS = 3

@@ -5,8 +5,8 @@ import ray
 import numpy as np
 import torch; torch.set_num_threads(1)
 
-from . import policy
-from .replay_buffer import Data
+import policy
+from replay_buffer import Data
 
 
 def point_from_line(p, a, b):

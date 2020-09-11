@@ -1,9 +1,4 @@
 # CS 394R Final Project: Deep Kart Racing
-Group members: Ann Yue and Brady Zhou.  
-This repository contains the codes for our CS 394R final project.
-
-All experiment logs, hyperparameters and videos can be found at
-[link](https://app.wandb.ai/bradyz/rl?workspace=user-bradyz).
 
 ## Installation
 Give it a minute or 10.

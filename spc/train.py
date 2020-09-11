@@ -6,12 +6,12 @@ import ray
 import wandb
 import torch
 
-from .utils import make_video
-from .rollout import RayRollout
-from .replay_buffer import ReplayBuffer
-from .reinforce import REINFORCE
-from .ppo import PPO
-from .ddpg import DDPG
+from utils import make_video
+from rollout import RayRollout
+from replay_buffer import ReplayBuffer
+from reinforce import REINFORCE
+from ppo import PPO
+from ddpg import DDPG
 
 
 N_WORKERS = 8
