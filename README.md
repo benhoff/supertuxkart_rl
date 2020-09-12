@@ -1,6 +1,8 @@
 # CS 394R Final Project: Deep Kart Racing
 
 ## Installation
+NOTE: This requires that the host machine has `conda` installed.
+
 Give it a minute or 10.
 ```
 source install.sh

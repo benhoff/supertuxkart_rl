@@ -1,4 +1,3 @@
-import wandb
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -6,8 +5,40 @@ import torch.nn.functional as F
 import policy
 
 
+class Network(torch.nn.Module):
+    def __init__(self, n_outputs: int):
+        super().__init__()
+
+        self.norm = torch.nn.BatchNorm2d(1)
+        self.conv1 = torch.nn.Conv2d(1, 32, kernel_size=8, stride=4)
+        self.conv2 = torch.nn.Conv2d(32, 64, 4, 2)
+        self.conv3 = torch.nn.Conv2d(64, 64, 3, 1)
+
+        self.fc4 = torch.nn.Linear(4 * 4 * 64, 512)
+        self.fc5 = torch.nn.Linear(512, n_outputs)
+
+    def forward(self, x):
+        x = self.norm(x.mean(1, True))
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.fc4(x.view(x.size(0), -1)))
+        x = self.fc5(x)
+
+        return x
+
+
 class PPO(object):
-    def __init__(self, batch_size, lr, iterations, eps, gamma, clip, device, **kwargs):
+    def __init__(self,
+                 batch_size: int,
+                 lr: float,
+                 iterations: int,
+                 eps: float,
+                 gamma: float,
+                 clip: float,
+                 device: 'torch.device',
+                 **kwargs):
+
         self.batch_size = batch_size
         self.lr = lr
         self.iterations = iterations
@@ -21,7 +52,7 @@ class PPO(object):
         self.actor = Network(self.n_actions)
         self.actor.to(device)
 
-        self.critic = Network(1)
+        self.critic = Network(n_outputs=1)
         self.critic.to(device)
 
         self.optim_critic = torch.optim.Adam(self.critic.parameters(), lr=self.lr)
@@ -86,38 +117,7 @@ class PPO(object):
             losses_critic.append(loss_critic.item())
             losses_actor.append(loss_actor.item())
 
-            wandb.run.summary['step'] += 1
-            wandb.log({
-                'batch/actor': loss_actor.item(),
-                'batch/critic': loss_critic.item(),
-                },
-                step=wandb.run.summary['step'])
-
         return {
                 'epoch/actor': np.mean(losses_actor),
                 'epoch/critic': np.mean(losses_critic),
                 }
-
-
-
-class Network(torch.nn.Module):
-    def __init__(self, n_outputs):
-        super().__init__()
-
-        self.norm = torch.nn.BatchNorm2d(1)
-        self.conv1 = torch.nn.Conv2d(1, 32, kernel_size=8, stride=4)
-        self.conv2 = torch.nn.Conv2d(32, 64, 4, 2)
-        self.conv3 = torch.nn.Conv2d(64, 64, 3, 1)
-
-        self.fc4 = torch.nn.Linear(4 * 4 * 64, 512)
-        self.fc5 = torch.nn.Linear(512, n_outputs)
-
-    def forward(self, x):
-        x = self.norm(x.mean(1, True))
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = F.relu(self.fc4(x.view(x.size(0), -1)))
-        x = self.fc5(x)
-
-        return x

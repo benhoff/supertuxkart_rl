@@ -3,29 +3,32 @@ import argparse
 import time
 import numpy as np
 import ray
-import wandb
+# import wandb
 import torch
 
 from utils import make_video
 from rollout import RayRollout
 from replay_buffer import ReplayBuffer
-from reinforce import REINFORCE
 from ppo import PPO
-from ddpg import DDPG
+
+# from reinforce import REINFORCE
+# from ddpg import DDPG
 
 
-N_WORKERS = 8
-MAPS = ["lighthouse", "zengarden", "hacienda", "snowtuxpeak", "cornfield_crossing"]
+N_WORKERS = 12
+# MAPS = ["lighthouse", "zengarden", "hacienda", "snowtuxpeak", "cornfield_crossing"]
+MAPS = ["battleisland", "stadium"]
+
+
+def get_track():
+    if track in MAPS:
+        return track
+
+    return np.random.choice(MAPS)
 
 
 class RaySampler(object):
-    def __init__(self, track='lighthouse'):
-        def get_track():
-            if track in MAPS:
-                return track
-
-            return np.random.choice(MAPS)
-
+    def __init__(self):
         self.rollouts = [RayRollout.remote(get_track()) for _ in range(N_WORKERS)]
 
     def get_samples(self, agent, max_frames=10000, max_step=500, gamma=1.0, frame_skip=0, **kwargs):
@@ -60,7 +63,7 @@ class RaySampler(object):
         print('Episodes: %d' % (len(returns)))
         print('Time: %.2f' % clock)
         print('Return: %.3f' % np.mean(returns))
-
+        """
         wandb.run.summary['frames'] = wandb.run.summary.get('frames', 0) + total_frames
         wandb.run.summary['episodes'] = wandb.run.summary.get('episodes', 0) + len(returns)
         wandb.run.summary['return'] = max(wandb.run.summary.get('return', 0), np.mean(returns))
@@ -76,24 +79,21 @@ class RaySampler(object):
             'total/frames': wandb.run.summary['frames'],
             'total/episodes': wandb.run.summary['episodes'],
             }, step=wandb.run.summary['step'])
+        """
 
 
 def main(config):
-    wandb.init(project='rl', config=config)
-    wandb.save(str(pathlib.Path(wandb.run.dir) / '*.t7'))
-    wandb.run.summary['step'] = 0
+    # wandb.init(project='rl', config=config)
+    # wandb.save(str(pathlib.Path(wandb.run.dir) / '*.t7'))
+    # wandb.run.summary['step'] = 0
 
-    trainer = {
-            'reinforce': REINFORCE,
-            'ppo': PPO,
-            'ddpg': DDPG,
-            }[config['algorithm']](**config)
+    trainer = PPO(**config)
 
     sampler = RaySampler(config['track'])
     replay = ReplayBuffer(config['max_frames'])
 
     for epoch in range(config['max_epoch']+1):
-        wandb.run.summary['epoch'] = epoch
+        # wandb.run.summary['epoch'] = epoch
 
         for rollout_batch in sampler.get_samples(trainer.get_policy(epoch), **config):
             for rollout, _ in rollout_batch:
@@ -103,21 +103,19 @@ def main(config):
         print([x.r[0] for x in rollout])
         metrics = trainer.train(replay)
 
-        wandb.log(metrics, step=wandb.run.summary['step'])
+        # wandb.log(metrics, step=wandb.run.summary['step'])
 
         if epoch % 50 == 0:
             torch.save(
                     trainer.actor.state_dict(),
                     pathlib.Path(wandb.run.dir) / ('model_%03d.t7' % epoch))
 
-
-if __name__ == '__main__':
+def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--max_epoch', type=int, default=500)
 
     # Optimizer args.
     parser.add_argument('--algorithm', type=str, default='reinforce')
-    parser.add_argument('--track', type=str, default='lighthouse')
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--lr_1', type=float, default=1e-4)
     parser.add_argument('--iterations', type=int, default=100)
@@ -130,12 +128,15 @@ if __name__ == '__main__':
     parser.add_argument('--eps', type=float, default=0.1)
     parser.add_argument('--clip', type=float, default=0.1)
     parser.add_argument('--importance_sampling', action='store_true', default=False)
+    return parser.parse_args()
 
-    parsed = parser.parse_args()
+
+if __name__ == '__main__':
+
+    parsed = parse_arguments()
 
     config = {
             'algorithm': parsed.algorithm,
-            'track': parsed.track,
             'frame_skip': parsed.frame_skip,
             'max_frames': parsed.max_frames,
             'max_step': parsed.max_step,
@@ -154,8 +155,6 @@ if __name__ == '__main__':
             'importance_sampling': parsed.importance_sampling,
             }
 
-    ray.init(logging_level=40, num_gpus=1, num_cpus=8)
+    ray.init(logging_level=40, num_gpus=1, num_cpus=12)
 
     main(config)
-
-    # ray.timeline(filename='tmp2.json')

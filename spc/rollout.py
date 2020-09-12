@@ -19,14 +19,6 @@ def point_from_line(p, a, b):
 
     closest = u.dot(v_norm) * v_norm
 
-    # import matplotlib.pyplot as plt; plt.ion()
-    # plt.clf()
-    # plt.axis('equal')
-    # plt.plot([0, v[0]], [0, v[1]], 'r-')
-    # plt.plot(u[0], u[1], 'bo')
-    # plt.plot(closest[0], closest[1], 'ro')
-    # plt.pause(0.01)
-
     return np.linalg.norm(u - closest)
 
 
@@ -41,7 +33,7 @@ def get_distance(d_new, d, track_length):
 
 
 class Rollout(object):
-    def __init__(self, track):
+    def __init__(self, track: str):
         config = pystk.GraphicsConfig.ld()
         config.screen_width = 64
         config.screen_height = 64
@@ -50,24 +42,39 @@ class Rollout(object):
         pystk.init(config)
 
         race_config = pystk.RaceConfig()
+        race_config.num_kart = 4
+
         race_config.players[0].controller = pystk.PlayerConfig.Controller.PLAYER_CONTROL
+        race_config.players[0].team = 0
+
+        race_config.players[1].controller = pystk.PlayerConfig.Controller.PLAYER_CONTROL
+        race_config.players[1].team = 0
+
+        race_config.players[2].controller = pystk.PlayerConfig.Controller.PLAYER_CONTROL
+        race_config.players[2].team = 1
+
+        race_config.players[3].controller = pystk.PlayerConfig.Controller.PLAYER_CONTROL
+        race_config.players[2].team = 1
+
         race_config.track = track
         race_config.step_size = 0.1
-        race_config.render = True
+        race_config.render = False
+        race_config.mode = race_config.RaceMode.THREE_STRIKES
 
         self.race = pystk.Race(race_config)
+
         self.race.start()
         self.race.step()
 
         self.track = pystk.Track()
         self.track.update()
 
-    def rollout(
-            self,
-            policy: policy.BasePolicy,
-            max_step: float = 100,
-            frame_skip: int = 0,
-            gamma: float = 1.0):
+    def rollout(self,
+                policy: policy.BasePolicy,
+                max_step: float = 100,
+                frame_skip: int = 0,
+                gamma: float = 1.0):
+
         self.race.restart()
         self.race.step(pystk.Action())
         self.track.update()
@@ -77,8 +84,13 @@ class Rollout(object):
         state = pystk.WorldState()
         state.update()
 
+        # r_total?
         r_total = 0
+
+        # distance
         d = state.karts[0].distance_down_track
+
+        # s
         s = np.array(self.race.render_data[0].image)
 
         off_track = deque(maxlen=20)
@@ -89,8 +101,8 @@ class Rollout(object):
             if it > 20 and (np.median(traveled) < 0.05 or all(off_track)):
                 break
 
-            v = np.linalg.norm(state.karts[0].velocity)
-            action, action_i, p_action = policy(s, v)
+            velocity = np.linalg.norm(state.karts[0].velocity)
+            action, action_index, p_action = policy(s, velocity)
 
             if isinstance(action, pystk.Action):
                 action_raw = [action.steer, action.acceleration, action.drift]
@@ -99,7 +111,7 @@ class Rollout(object):
 
                 action = pystk.Action()
                 action.steer = action_raw[0]
-                action.acceleration = np.clip(action_raw[1] - v, 0, np.inf)
+                action.acceleration = np.clip(action_raw[1] - velocity, 0, np.inf)
                 action.drift = action_raw[2] > 0.5
 
             for _ in range(1 + frame_skip):
@@ -132,7 +144,7 @@ class Rollout(object):
                     Data(
                         s.copy(),
                         np.float32(action_raw),
-                        np.uint8([action_i]), np.float32([p_action]),
+                        np.uint8([action_index]), np.float32([p_action]),
                         np.float32([r]), s_p.copy(),
                         np.float32([np.nan]),
                         np.float32([0])))

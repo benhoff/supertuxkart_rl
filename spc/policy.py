@@ -23,6 +23,10 @@ class DiscretePolicy(BasePolicy):
         self.eps = eps
 
     def __call__(self, s, v):
+        """
+        s -> image
+        v -> velocity
+        """
         with torch.no_grad():
             s = s.transpose(2, 0, 1)
             s = torch.FloatTensor(s).unsqueeze(0).cpu()

@@ -42,4 +42,3 @@ class TuxController(BaseController):
         self.last_drift = a.drift
         self.current_drift = drift
         return a
-
